@@ -11,8 +11,8 @@ class BatteryMonitorNode(Node):
     def __init__(self):
         super().__init__('battery_monitor_node')
 
-        self.low_threshold = 0.20
-        self.high_threshold = 0.80
+        self.initial_battery = None
+        self.threshold_delta = 0.05 # 5%
         self.current_mode = None
 
         self.subscription = self.create_subscription(
@@ -39,12 +39,25 @@ class BatteryMonitorNode(Node):
 
         self.get_logger().info(f'Battery percentage: {percentage * 100:.1f}%')
 
-        if percentage < self.low_threshold:
+        # Store initial battery once
+        if self.initial_battery is None:
+	    self.initial_battery = percentage
+	    self.get_logger().info(f'Initial battery set: {percentage*100:.1f}%')
+	    return
+	    
+        low_threshold = max(0.0, self.initial_battery - self.threshold_delta)
+        high_threshold = min(1.0, self.initial_battery + self.threshold_delta)
+	
+        self.get_logger().info(
+          f'Battery: {percentage*100:.1f}% | Low: {low_threshold*100:.1f}% | High: {high_threshold*100:.1f}%'
+        )    
+	
+        if percentage <= low_threshold:
             if self.current_mode != 'dock':
                 self.publish_command('dock')
                 self.current_mode = 'dock'
 
-        elif percentage > self.high_threshold:
+        elif percentage >= high_threshold:
             if self.current_mode != 'resume':
                 self.publish_command('resume')
                 self.current_mode = 'resume'
